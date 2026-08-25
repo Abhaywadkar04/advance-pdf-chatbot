@@ -1,0 +1,7 @@
+A vector database is a specialized database designed to store, index, and search large collections of embedding vectors efficiently. Unlike a traditional database, which is optimized for exact matches on structured fields, a vector database is optimized for similarity search: finding the vectors that are closest to a given query vector.
+
+To search efficiently across millions or billions of vectors, vector databases use approximate nearest neighbor (ANN) indexing algorithms, such as HNSW (Hierarchical Navigable Small World graphs) or IVF (Inverted File Index), rather than comparing the query against every single stored vector one by one.
+
+Common vector database systems include Chroma, Pinecone, Weaviate, Qdrant, Milvus, and FAISS (a library rather than a full database). Chroma in particular is popular for local, lightweight retrieval-augmented generation (RAG) projects because it can run embedded directly inside a Python application without a separate server.
+
+When a document is added to a vector database, it is typically split into smaller pieces called chunks, each chunk is converted into an embedding, and the embedding is stored alongside the original chunk text and any metadata (such as source filename or page number). At query time, the user's question is embedded using the same embedding model, and the database returns the top-K chunks whose embeddings are most similar to the query embedding.

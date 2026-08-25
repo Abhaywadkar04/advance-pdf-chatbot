@@ -1,0 +1,7 @@
+A Convolutional Neural Network (CNN) is a type of neural network that uses convolutional layers to automatically learn spatial or local patterns in data, most commonly images, but also applicable to text and audio.
+
+A convolutional layer applies a small learnable filter (or kernel) that slides across the input, computing a dot product at each position to produce a feature map. This allows the network to detect local patterns, such as edges or textures in an image, regardless of where in the input they occur — a property known as translation invariance.
+
+CNNs typically stack multiple convolutional layers, often interspersed with pooling layers that downsample the feature maps (reducing their size while retaining the most important information), followed by one or more fully connected layers at the end that produce the final output, such as a classification label.
+
+In natural language processing, CNNs have been used for tasks like text classification and sentence embedding by treating a sentence as a 1-dimensional sequence and sliding filters over groups of adjacent words, though they have largely been superseded by Transformer-based architectures for most modern NLP tasks.

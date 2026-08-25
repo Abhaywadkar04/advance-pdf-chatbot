@@ -1,0 +1,7 @@
+Attention is a mechanism in neural networks that allows a model to weigh the importance of different parts of the input when producing each part of the output. Instead of compressing an entire input sequence into a single fixed-length vector, attention lets the model look back at all input positions and decide, for each output step, which input positions are most relevant.
+
+Self-attention, the form used in Transformers, computes attention scores between every pair of tokens in the same sequence. For each token, the model produces three vectors: a Query (Q), a Key (K), and a Value (V). The attention score between two tokens is computed by comparing the Query of one token with the Key of the other (typically via a dot product), then scaling and passing the result through a softmax function to produce weights. These weights are used to compute a weighted sum of the Value vectors, producing the output for that token.
+
+Multi-head attention runs several attention computations ("heads") in parallel, each with its own learned Query, Key, and Value projections. This allows the model to jointly attend to information from different representation subspaces — for example, one head might focus on syntactic relationships while another focuses on longer-range semantic relationships.
+
+Attention was originally introduced to improve RNN-based machine translation (allowing the decoder to "attend" back over encoder states) before the Transformer architecture showed that attention alone, without recurrence, was sufficient for strong performance.

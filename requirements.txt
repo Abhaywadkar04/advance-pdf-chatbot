@@ -1,0 +1,15 @@
+langchain>=1.0
+langchain-chroma>=1.0
+langchain-community>=0.4
+langchain-google-genai>=4.0
+langchain-openai>=1.0
+langchain-text-splitters>=1.0
+pypdf>=4.0
+tiktoken>=0.7.0
+# Phase 2 — Hybrid Retrieval + Re-ranking
+rank-bm25>=0.2.2           # BM25Okapi keyword index
+sentence-transformers>=3.0 # CrossEncoder re-ranker (downloads ~65 MB model on first run)
+
+
+
+

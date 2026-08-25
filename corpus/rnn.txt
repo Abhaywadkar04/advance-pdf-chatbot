@@ -1,0 +1,7 @@
+A Recurrent Neural Network (RNN) is a type of neural network designed to process sequential data, such as text or time series, by maintaining a hidden state that is updated at each time step based on the current input and the previous hidden state. This gives RNNs a form of memory, allowing information from earlier in the sequence to influence processing of later elements.
+
+Unlike feed-forward networks, which process each input independently, an RNN processes a sequence one element at a time, feeding its own output from the previous step back into itself as part of the input for the next step (hence "recurrent").
+
+A major limitation of basic RNNs is the vanishing gradient problem: when training on long sequences, gradients used to update the network's weights can shrink exponentially as they are propagated backward through many time steps, making it difficult for the network to learn dependencies between elements that are far apart in the sequence. This limitation motivated the development of gated variants such as LSTM and GRU (Gated Recurrent Unit).
+
+Because RNNs process tokens sequentially rather than in parallel, they are also slower to train on modern hardware than architectures like the Transformer, which can process an entire sequence at once.
