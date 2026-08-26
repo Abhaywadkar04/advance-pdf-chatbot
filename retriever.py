@@ -18,6 +18,23 @@ Key design decisions
 - RRF: score += 1/(rrf_k + rank) for each list, merge and sort.
 - CrossEncoder reads (query, chunk) together; full cross-attention -> higher precision.
 - Inverted index: pre-computed token-to-chunks mapping for fast candidate lookup.
+
+FIX (see _score_bm25_candidates):
+  BM25Okapi.get_scores() is a vectorized pass that ALWAYS scores the entire
+  corpus - there is no way to hand it a subset of doc ids. The inverted index
+  narrows down which chunks are *relevant candidates*, but previously the code
+  still called get_scores() over all chunks and just indexed into the result,
+  so the inverted index bought nothing computationally.
+
+  Fix: BM25Okapi keeps its fitted state as public attributes after __init__ -
+  .idf (dict[term, float]), .doc_freqs (list[dict[term, count]] per doc),
+  .doc_len (list[int]), .avgdl (float), .k1, .b. Those are exactly the pieces
+  needed to compute the Okapi BM25 formula for a single doc. So instead of
+  calling get_scores() (O(n) over the whole corpus), we replicate the same
+  formula by hand but only loop over the candidate doc ids returned by the
+  inverted index (O(m), m = matching chunks). Falls back to get_scores() only
+  when there are no candidates (empty/unmatched query), matching the previous
+  fallback behavior.
 """
 
 from __future__ import annotations
@@ -124,7 +141,9 @@ def _get_bm25_index() -> tuple[BM25Okapi, list[dict[str, Any]], InvertedIndex]:
 
     Returns
     -------
-    bm25    : BM25Okapi      - the index, ready to score queries
+    bm25    : BM25Okapi      - the index; also used as a container for its
+                                fitted state (idf/doc_freqs/doc_len/avgdl/k1/b)
+                                which _score_bm25_candidates reuses directly.
     chunks  : list[dict]     - parallel list of {text, metadata} dicts
     inv_idx : InvertedIndex  - pre-computed token-to-chunks mapping
     """
@@ -166,15 +185,78 @@ def _get_cross_encoder() -> CrossEncoder:
 
 
 # ---------------------------------------------------------------------------
+# BM25 SCORING RESTRICTED TO A CANDIDATE SUBSET
+# ---------------------------------------------------------------------------
+
+def _score_bm25_candidates(
+    bm25: BM25Okapi,
+    query_tokens: list[str],
+    candidate_ids: set[int],
+) -> dict[int, float]:
+    """Compute Okapi BM25 scores for ONLY the given candidate doc ids.
+
+    This replicates BM25Okapi.get_scores()'s formula by hand, but loops over
+    `candidate_ids` instead of the whole corpus - O(m * |query terms|)
+    instead of O(n * |query terms|).
+
+    Reuses BM25Okapi's fitted state directly (these are plain public
+    attributes set in its __init__, so no re-fitting is needed):
+      bm25.idf       : dict[term -> idf], already epsilon-floored
+      bm25.doc_freqs : list[dict[term -> term_count]], one dict per doc
+      bm25.doc_len   : list[int], token count per doc
+      bm25.avgdl     : float, average doc length across the corpus
+      bm25.k1, bm25.b: BM25 hyperparameters (defaults 1.5, 0.75)
+
+    Parameters
+    ----------
+    bm25          : fitted BM25Okapi instance (from _get_bm25_index)
+    query_tokens  : tokenized query
+    candidate_ids : doc indices to score (from InvertedIndex.get_candidates)
+
+    Returns
+    -------
+    dict mapping doc index -> BM25 score, only for candidate_ids
+    """
+    idf     = bm25.idf
+    doc_freqs = bm25.doc_freqs
+    doc_len = bm25.doc_len
+    avgdl   = bm25.avgdl
+    k1      = bm25.k1
+    b       = bm25.b
+
+    # Skip query terms with zero/absent idf up front - they contribute nothing.
+    terms = [(t, idf.get(t, 0.0)) for t in query_tokens]
+    terms = [(t, w) for t, w in terms if w]
+
+    scores: dict[int, float] = {}
+    for i in candidate_ids:
+        freqs = doc_freqs[i]
+        dl    = doc_len[i]
+        denom_len_term = k1 * (1 - b + b * dl / avgdl)
+
+        s = 0.0
+        for term, term_idf in terms:
+            f = freqs.get(term, 0)
+            if f == 0:
+                continue
+            s += term_idf * (f * (k1 + 1)) / (f + denom_len_term)
+        scores[i] = s
+
+    return scores
+
+
+# ---------------------------------------------------------------------------
 # SEARCH LEGS
 # ---------------------------------------------------------------------------
 
 def bm25_search(query: str, k: int = BM25_TOP_K) -> list[dict[str, Any]]:
-    """Keyword search via BM25Okapi with inverted index optimization.
+    """Keyword search via BM25 with inverted index optimization.
 
     Uses the inverted index to find candidate chunks containing at least one
-    query token, then scores only those candidates with BM25. Falls back to
-    scoring all chunks if no candidates found (empty query edge case).
+    query token, then scores ONLY those candidates by hand via
+    _score_bm25_candidates (true O(m), m = matching chunks). Falls back to
+    bm25.get_scores() over the full corpus only if no candidates are found
+    (e.g. query tokens absent from the corpus entirely).
 
     Returns list of {text, metadata, score, rank_source} where score is the
     raw BM25 relevance score (higher = better match).
@@ -182,18 +264,16 @@ def bm25_search(query: str, k: int = BM25_TOP_K) -> list[dict[str, Any]]:
     bm25, chunks, inv_idx = _get_bm25_index()
     q_tokens = _simple_tokenize(query)
 
-    # Use inverted index to find candidate chunks (only those with matching tokens)
     candidate_ids = inv_idx.get_candidates(q_tokens)
 
     if candidate_ids:
-        # Score only candidates (O(m) instead of O(n))
-        candidate_list = sorted(candidate_ids)
-        scores = bm25.get_scores(q_tokens)
-        scored = [(i, scores[i]) for i in candidate_list]
+        # Real O(m) path: score only the matching chunks.
+        scored_map = _score_bm25_candidates(bm25, q_tokens, candidate_ids)
+        scored = list(scored_map.items())
     else:
-        # Fallback: no matching tokens found, score all chunks
+        # Fallback: no matching tokens found, score all chunks.
         scores = bm25.get_scores(q_tokens)
-        scored = [(i, scores[i]) for i in range(len(scores))]
+        scored = list(enumerate(scores))
 
     # Sort by score descending, take top-k
     scored.sort(key=lambda x: x[1], reverse=True)
@@ -285,7 +365,7 @@ def rerank(
     Parameters
     ----------
     query      : user question
-    candidates : RRF-ranked list (we take first  items)
+    candidates : RRF-ranked list (we take first `pool` items)
     top_n      : final number to keep (fed to LLM context)
     pool       : how many candidates to pass to the cross-encoder
     """

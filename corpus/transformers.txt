@@ -1,7 +1,0 @@
-The Transformer is a neural network architecture introduced in the paper "Attention Is All You Need," published by researchers at Google in 2017. The paper's core contribution was showing that a model could achieve state-of-the-art results on sequence tasks like machine translation using only attention mechanisms, without any recurrent (RNN) or convolutional (CNN) layers.
-
-The Transformer architecture consists of an encoder stack and a decoder stack. Each layer in these stacks contains a multi-head self-attention mechanism followed by a position-wise feed-forward network, with residual connections and layer normalization around each sub-layer.
-
-Because Transformers process an entire sequence in parallel rather than one token at a time (unlike RNNs), they train much faster on modern hardware such as GPUs and TPUs. To retain information about word order despite processing all tokens simultaneously, Transformers add positional encodings to the input embeddings.
-
-The Transformer architecture became the foundation for nearly all modern large language models, including the GPT family, BERT, and T5, as well as models used for embeddings and cross-encoder rerankers.
