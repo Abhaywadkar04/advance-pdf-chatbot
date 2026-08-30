@@ -26,21 +26,18 @@ Phase 2 pipeline (hybrid=True):
 gains "hits", after F it gains "context", after G it gains "response".
 """
 
-from langchain_chroma import Chroma                          # vector store client
 from langchain_core.output_parsers import StrOutputParser    # AIMessage -> str
 from langchain_core.prompts import ChatPromptTemplate        # fill {placeholders}
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_openai import ChatOpenAI                      # talks to Groq too
 
 from config import (
-    CHROMA_DIR,
-    COLLECTION_NAME,
     GROQ_API_KEY,
     GROQ_BASE_URL,
     GROQ_MODEL,
     TOP_K,
 )
-from ingest import get_embeddings   # reuse the SAME embedding model as ingest!
+from ingest import get_embeddings, create_chroma   # reuse the SAME embedding model as ingest!
 # ^ critical: query vectors must live in the same "space" as chunk vectors
 
 
@@ -105,11 +102,7 @@ def _retrieve(d: dict) -> list[dict]:
     distance = how far apart the vectors are (0 = identical),
     so we store score = 1 - distance, i.e. SIMILARITY (1 = identical).
     """
-    vs = Chroma(
-        collection_name=COLLECTION_NAME,
-        embedding_function=get_embeddings(),
-        persist_directory=str(CHROMA_DIR),
-    )
+    vs = create_chroma()
     if len(vs.get(limit=1)["ids"]) == 0:
         raise RuntimeError("Vector store is empty - run: python main.py ingest")
 

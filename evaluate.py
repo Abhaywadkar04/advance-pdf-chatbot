@@ -33,9 +33,8 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
-from langchain_chroma import Chroma
-from config import CHROMA_DIR, COLLECTION_NAME, RERANK_TOP_N, TOP_K
-from ingest import get_embeddings
+from config import RERANK_TOP_N, TOP_K
+from ingest import create_chroma
 
 
 # ---------------------------------------------------------------------------
@@ -53,9 +52,7 @@ def _auto_generate_qa(n: int = 10) -> list[dict[str, str]]:
     -------
     list of {"q": question, "source": expected_source_filename}
     """
-    vs     = Chroma(collection_name=COLLECTION_NAME,
-                   embedding_function=get_embeddings(),
-                   persist_directory=str(CHROMA_DIR))
+    vs     = create_chroma()
     result = vs.get(include=["documents", "metadatas"])
     texts, metas = result["documents"], result["metadatas"]
 

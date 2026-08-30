@@ -44,21 +44,18 @@ from collections import defaultdict
 from functools import lru_cache
 from typing import Any
 
-from langchain_chroma import Chroma
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
 
 from config import (
     BM25_TOP_K,
-    CHROMA_DIR,
-    COLLECTION_NAME,
     CROSS_ENCODER_MODEL,
     RERANK_POOL,
     RERANK_TOP_N,
     RRF_K,
     VECTOR_TOP_K,
 )
-from ingest import get_embeddings
+from ingest import create_chroma
 
 
 # ---------------------------------------------------------------------------
@@ -147,11 +144,7 @@ def _get_bm25_index() -> tuple[BM25Okapi, list[dict[str, Any]], InvertedIndex]:
     chunks  : list[dict]     - parallel list of {text, metadata} dicts
     inv_idx : InvertedIndex  - pre-computed token-to-chunks mapping
     """
-    vs = Chroma(
-        collection_name=COLLECTION_NAME,
-        embedding_function=get_embeddings(),
-        persist_directory=str(CHROMA_DIR),
-    )
+    vs = create_chroma()
     result    = vs.get(include=["documents", "metadatas"])
     texts     = result["documents"]
     metadatas = result["metadatas"]
@@ -296,11 +289,7 @@ def vector_search(query: str, k: int = VECTOR_TOP_K) -> list[dict[str, Any]]:
     Returns list of {text, metadata, score, rank_source} where score is cosine
     similarity (1 = identical).
     """
-    vs = Chroma(
-        collection_name=COLLECTION_NAME,
-        embedding_function=get_embeddings(),
-        persist_directory=str(CHROMA_DIR),
-    )
+    vs = create_chroma()
     pairs = vs.similarity_search_with_score(query, k=k)
     return [
         {
