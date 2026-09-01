@@ -19,11 +19,17 @@ import argparse
 import sys
 
 
-def print_answer(query: str, k: int, hybrid: bool = False) -> None:
-    """Ask the RAG chain and display the answer plus its sources."""
+def print_answer(query: str, k: int, hybrid: bool = False,
+                 session_state: dict | None = None) -> tuple:
+    """Ask the RAG chain and display the answer plus its sources.
+
+    Returns (response, hits, updated_session_state) so the caller can
+    persist conversation memory across turns.
+    """
     from rag import answer
 
-    resp, hits = answer(query, k, hybrid=hybrid)
+    resp, hits, session_state = answer(query, k, hybrid=hybrid,
+                                       session_state=session_state)
 
     print("\n=== ANSWER ===")
     print(resp)
@@ -36,11 +42,17 @@ def print_answer(query: str, k: int, hybrid: bool = False) -> None:
         print(f"[{i}] {m['source']} | page {m['page']} "
               f"| score {score:.4f} | via {stage}")
 
+    return resp, hits, session_state
+
 
 def chat(k: int, hybrid: bool = False) -> None:
-    """Interactive mode: keep asking questions until you type exit."""
+    """Interactive mode: keep asking questions until you type exit.
+
+    Maintains rolling-summary conversation memory across turns.
+    """
     mode = "hybrid (Phase 2)" if hybrid else "vector-only (Phase 1)"
     print(f"Interactive RAG chat [{mode}]. Type 'exit' to quit.")
+    session_state = {"summary": "", "recent_turns": []}
     while True:
         try:
             q = input("\nYou> ").strip()
@@ -49,7 +61,18 @@ def chat(k: int, hybrid: bool = False) -> None:
         if not q or q.lower() in {"exit", "quit"}:
             break
         try:
-            print_answer(q, k, hybrid=hybrid)
+            resp, hits, session_state = print_answer(
+                q, k, hybrid=hybrid, session_state=session_state)
+
+            # Persist this turn's Q&A into recent turns for next time.
+            session_state["recent_turns"].append({"role": "user",
+                                                  "content": q})
+            session_state["recent_turns"].append({"role": "assistant",
+                                                  "content": resp})
+
+            # Debug visibility: show when the running summary updates.
+            if session_state.get("summary"):
+                print(f"\n[memory summary] {session_state['summary']}")
         except Exception as exc:
             print(f"[error] {exc}")
     print("Bye.")
